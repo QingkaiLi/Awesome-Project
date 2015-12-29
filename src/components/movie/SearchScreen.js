@@ -13,7 +13,10 @@ var {
 
 var TimerMixin = require('react-timer-mixin');
 
+var invariant = require('invariant');
+
 var MovieCell = require('./MovieCell');
+var SearchBar = require('./SearchBar');
 
 var API_URL = 'http://api.rottentomatoes.com/api/public/v1.0/';
 var API_KEYS = [
@@ -47,18 +50,21 @@ var searchScreen = React.createClass({
     },
     _urlForQueryAndPage: function(query: string, pageNumber: number): string {
         var apiKey = API_KEYS[this.state.queryNumber % API_KEYS.length];
+        var link = "";
         if (query) {
-            return (
+            link = (
                 API_URL + 'movies.json?apikey=' + apiKey + '&q=' +
                 encodeURIComponent(query) + '&page_limit=20&page=' + pageNumber
             );
         } else {
             // With no query, load latest movies
-            return (
+            link = (
                 API_URL + 'lists/movies/in_theaters.json?apikey=' + apiKey +
                 '&page_limit=20&page=' + pageNumber
             );
         }
+        console.log(">>>>>>>>>>>>search url:" + link)
+        return link;
     },
     searchMovies: function(query: string) {
         this.timeoutID = null;
@@ -101,6 +107,7 @@ var searchScreen = React.createClass({
                 resultsCache.dataForQuery[query] = responseData.movies;
                 resultsCache.nextPageNumberForQuery[query] = 2;
 
+                console.log(">>>>>>>>>>>>Data results:"+(responseData.movies || []).length)
                 if (this.state.filter !== query) {
                     return;
                 }
@@ -118,6 +125,14 @@ var searchScreen = React.createClass({
     selectMovie: function(movie: Object) {
         //@TODO
     },
+    hasMore: function() {
+        var query = this.state.filter;
+        if (!resultsCache.dataForQuery[query])
+            return true;
+        return (
+            resultsCache.totalForQuery[query] !== resultsCache.dataForQuery[query].length
+        )
+    },
     renderRow: function(
         movie: Object,
         sectionID: number | string,
@@ -134,6 +149,91 @@ var searchScreen = React.createClass({
         />
       )
     },
+    renderSeparator: function(
+        sectionID: number | string,
+        rowID: number | string,
+        adjacentRowHighlighted: boolean) {
+        var style = styles.rowSeparator;
+        if (adjacentRowHighlighted) {
+            style = [style, styles.rowSeparatorHide];
+        }
+
+        return (
+            <View key={'SEP_' + sectionID +'_' + rowID} style={style} />
+        )
+    },
+    renderFooter: function() {
+        if (!this.hasMore() || !this.state.isLoadingTail) {
+            return <View style={styles.scrollSpinner} />
+        }
+        if (Platform.OS === 'ios') {
+            return <ActivityIndicatorIOS style={styles.scrollSpinner} />
+        } else {
+            return (
+                <View style={{alignItems: 'center'}}>
+                    <ProgressBarAndroid styleAttr="Large" />
+                </View>
+            )
+        }
+    },
+    onSearchChange: function(event: Object) {
+        var filter = event.nativeEvent.text.toLowerCase();
+
+        this.clearTimeout(this.timeoutID);
+        this.timeoutID = this.setTimeout(() => this.searchMovies(filter), 100);
+    },
+    onEndReached: function() {
+        var query = this.state.filer || "";
+        if (!this.hasMore() || this.state.isLoadingTail) {
+            return;
+        }
+
+        if (LOADING[query])
+            return;
+
+        LOADING[query] = true;
+        this.setState({
+            queryNumber: this.state.queryNumber + 1,
+            isLoadingTail: true
+        })
+
+        var page = resultsCache.nextPageNumberForQuery[query];
+        invariant(page != null, 'Next page number for "%s" is missing', query);
+        fetch(this._urlForQueryAndPage(query, page))
+            .then((response) => response.json())
+            .catch((error) => {
+                console.error(error);
+                LOADING[query] = false;
+                this.setState({
+                    isLoadingTail: false
+                })
+            })
+            .then((responseData) => {
+
+                var moviesForQuery = resultsCache.dataForQuery[query].slice();
+
+                LOADING[query] = false;
+                if (!responseData.movies) {
+                    resultsCache.totalForQuery[query] = moviesForQuery.length;
+                } else {
+                    for (var i in responseData.movies) {
+                        moviesForQuery.push(responseData.movies[i]);
+                    }
+                    resultsCache.dataForQuery[query] = moviesForQuery;
+                    resultsCache.nextPageNumberForQuery[query] += 1;
+                }
+                console.log(">>>>>>>>>>>>Data results:"+(responseData.movies || []).length)
+                if (this.state.filer !== query) {
+                    return;
+                }
+
+                this.setState({
+                    isLoadingTail: false,
+                    dataSource: this.getDataSource(resultsCache.dataForQuery[query])
+                })
+            })
+            .done()
+    },
     render: function() {
         var content = this.state.dataSource.getRowCount() === 0?
             <NoMovies
@@ -141,12 +241,23 @@ var searchScreen = React.createClass({
                 isLoading = {this.state.isLoading}
             />:
             <ListView
-                ref="listView"
+                ref="listview"
                 dataSource={this.state.dataSource}
                 renderRow={this.renderRow}
+                renderSeparator={this.renderSeparator}
+                renderFooter={this.renderFooter}
+                onEndReached={this.onEndReached}
             />;
         return (
             <View style={styles.container}>
+                <SearchBar
+                    onSearchChange= {this.onSearchChange}
+                    isLoading={this.state.isLoading}
+                    onFocus={()=>
+                        this.refs.listview && this.refs.listview.getScrollResponder().scrollTop(0, 0)
+                    }
+                />
+                <View style={styles.separator}/>
                 {content}
             </View>
         )
@@ -181,6 +292,21 @@ var styles = StyleSheet.create({
     noMoviesText: {
         marginTop: 80,
         color: '#888888'
+    },
+    separator: {
+        height: 1,
+        backgroundColor: '#eeeeee'
+    },
+    scrollSpinner: {
+        marginVertical: 20
+    },
+    rowSeparator: {
+        backgroundColor: 'rgba(0, 0, 0, 0.1)',
+        height: 1,
+        marginLeft: 4,
+    },
+    rowSeparatorHide: {
+        opacity: 0.0,
     }
 })
 
