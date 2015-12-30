@@ -12,11 +12,12 @@ var {
 } = React;
 
 var TimerMixin = require('react-timer-mixin');
-
+var dismissKeyboard = require('dismissKeyboard');
 var invariant = require('invariant');
 
 var MovieCell = require('./MovieCell');
 var SearchBar = require('./SearchBar');
+var MovieScreen = require('./MovieScreen');
 
 var API_URL = 'http://api.rottentomatoes.com/api/public/v1.0/';
 var API_KEYS = [
@@ -123,7 +124,20 @@ var searchScreen = React.createClass({
         return this.state.dataSource.cloneWithRows(movies);
     },
     selectMovie: function(movie: Object) {
-        //@TODO
+        if (Platform.OS === 'ios') {
+            this.props.navigator.push({
+                title: movie.title,
+                component: MovieScreen,
+                passProps: {movie}
+            })
+        } else {
+            dismissKeyboard();
+            this.props.navigator.push({
+                title: movie.title,
+                name: 'movie',
+                movie: movie
+            })
+        }
     },
     hasMore: function() {
         var query = this.state.filter;
@@ -247,6 +261,10 @@ var searchScreen = React.createClass({
                 renderSeparator={this.renderSeparator}
                 renderFooter={this.renderFooter}
                 onEndReached={this.onEndReached}
+                automaticallyAdjustContentInsets={false}
+                keyboardDismissMode='on-drag'
+                keyboardShouldPersistTaps={true}
+                showsVerticalScrollIndicator={false}
             />;
         return (
             <View style={styles.container}>

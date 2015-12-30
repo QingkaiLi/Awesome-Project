@@ -2,6 +2,7 @@
 
 var React = require('react-native');
 var SearchScreen = require('./components/movie/SearchScreen');
+var MovieScreen = require('./components/movie/MovieScreen');
 
 var {
     BackAndroid,
@@ -11,7 +12,6 @@ var {
     Text,
     View
 } = React;
-
 
 var RouteMapper = function(route, navigationOperations, onComponentRef) {
     var _navigator = navigationOperations;
@@ -25,11 +25,16 @@ var RouteMapper = function(route, navigationOperations, onComponentRef) {
                 <ToolbarAndroid
                     actions={[]}
                     navIcon={require('image!android_back_white')}
-                    onIconClicked={navigationOperations.prop}
+                    onIconClicked={navigationOperations.pop}
                     style={styles.toolbar}
                     titleColor="white"
-                    title={'gundan'}
+                    title={route.movie.title}
                     />
+                <MovieScreen
+                    style={{flex: 1}}
+                    navigator={navigationOperations}
+                    movie={route.movie}
+                />
             </View>
         )
     }
