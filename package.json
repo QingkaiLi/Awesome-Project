@@ -3,11 +3,15 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "start": "react-native start"
+    "start": "react-native start",
+    "snyk-protect": "snyk protect",
+    "prepare": "npm run snyk-protect"
   },
   "dependencies": {
     "invariant": "^2.2.0",
-    "react-native": "^0.15.0",
-    "react-timer-mixin": "^0.13.3"
-  }
+    "react-native": "^0.39.1",
+    "react-timer-mixin": "^0.13.3",
+    "snyk": "^1.88.0"
+  },
+  "snyk": true
 }
